@@ -5,7 +5,7 @@ from torch import nn
 
 def freeze_params(model: nn.Module) -> None:
     """
-    Freeze the parameters of this module
+    Freeze the parameters of this model
     i.e. do not update them during training
 
     """
