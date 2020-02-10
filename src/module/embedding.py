@@ -7,7 +7,7 @@ from torch import nn
 from src.util.model_util import freeze_params
 
 
-class Embedding(nn.Module):
+class Embeddings(nn.Module):
     """
 
     simple embedding class
