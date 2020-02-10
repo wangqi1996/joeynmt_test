@@ -3,8 +3,18 @@
 import torch
 from torch import nn
 
-
 class Decoder(nn.Module):
-    def __init__(self):
-        pass
+    """
+    Base decoder class
+    """
+
+    @property
+    def output_size(self):
+        """
+        Return the output size (size of the target vocabulary)
+        :return:
+        """
+        return self._output_size
+
+
 

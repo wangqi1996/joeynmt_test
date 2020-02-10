@@ -33,46 +33,46 @@ class PositionwiseFeedForward(nn.Module):
     def forward(self, x):
         return self.pwff_layer(x)
 
-    class TransformerEncoderLayer(nn.Module):
+class TransformerEncoderLayer(nn.Module):
+    """
+    One Transformer encoder layer has a Multi-head attention layer plus a position-wise feed-forward layer.
+    """
+
+    def __init__(self, size: int = 0, ff_size: int = 0,
+                 num_heads: int = 0, dropout: float = 0.1):
         """
-        One Transformer encoder layer has a Multi-head attention layer plus a position-wise feed-forward layer.
+        A single Transformer layer.
         """
+        super().__init__()
 
-        def __init__(self, size: int = 0, ff_size: int = 0,
-                     num_heads: int = 0, dropout: float = 0.1):
-            """
-            A single Transformer layer.
-            """
-            super().__init__()
+        self.layer_norm1 = nn.LayerNorm(size, eps=1e-6)
+        self.src_src_att = MultiHeadedAttention(num_heads=num_heads, size=size, dropout=dropout)
+        self.layer_norm2 = nn.LayerNorm(size, eps=1e-6)
+        self.feed_forward = PositionwiseFeedForward(input_size=size, ff_size=ff_size, dropout=dropout)
+        self.dropout = nn.Dropout(dropout)
+        self.size = size
 
-            self.layer_norm1 = nn.LayerNorm(size, eps=1e-6)
-            self.src_src_att = MultiHeadedAttention(num_heads=num_heads, size=size, dropout=dropout)
-            self.layer_norm2 = nn.LayerNorm(size, eps=1e-6)
-            self.feed_forward = PositionwiseFeedForward(input_size=size, ff_size=ff_size, dropout=dropout)
-            self.dropout = nn.Dropout(dropout)
-            self.size = size
+    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
+        """
+        Forward pass for a single transformer encoder layer.
+        First applies layer norm, then self attention,
+        then dropout with residual connection (adding the input to the result),
+        and then a position-wise feed-forward layer.
 
-        def forward(self, x: Tensor, mask: Tensor) -> Tensor:
-            """
-            Forward pass for a single transformer encoder layer.
-            First applies layer norm, then self attention,
-            then dropout with residual connection (adding the input to the result),
-            and then a position-wise feed-forward layer.
+        :param x:
+        :param mask:
+        :return:
+        """
+        # layer_norm + attention
+        x_norm = self.layer_norm1(x)
+        h = self.src_src_att(x_norm, x_norm, x_norm, mask)
+        attention = self.dropout(h) + x
+        # layer_norm + FFN
+        attention_norm = self.layer_norm2(attention)
+        h = self.feed_forward(attention_norm)
+        output = self.dropout(h) + attention
 
-            :param x:
-            :param mask:
-            :return:
-            """
-            # layer_norm + attention
-            x_norm = self.layer_norm1(x)
-            h = self.src_src_att(x_norm, x_norm, x_norm, mask)
-            attention = self.dropout(h) + x
-            # layer_norm + FFN
-            attention_norm = self.layer_norm2(attention)
-            h = self.feed_forward(attention_norm)
-            output = self.dropout(h) + attention
-
-            return output
+        return output
 
 
 class TransformerDecoderLayer(nn.Module):
