@@ -3,10 +3,10 @@
 """
 Attention modules
 """
-
+import math
 import torch
-from torch import nn, Tensor
 import torch.nn.functional as F
+from torch import nn, Tensor
 
 
 class AttentionMechanism(nn.Module):
@@ -224,3 +224,87 @@ class LuongAttention(AttentionMechanism):
 
     def __repr__(self):
         return "LuongAttention"
+
+
+class MultiHeadedAttention(AttentionMechanism):
+    """
+    Multi-Head Attention module from "Attention is All You Need"
+
+    Implementation modified from OpenNMT-py.
+    https://github.com/OpenNMT/OpenNMT-py
+    """
+
+    def __init__(self, num_heads: int, size: int, dropout: float = 0.1):
+        """
+        create a multi-headed attention layer
+
+        :param num_heads:
+        :param size: module size (must be divisible by num_heads)
+        :param dropout:
+        """
+        super().__init__()
+
+        assert size % num_heads == 0
+
+        self.head_size = size // num_heads
+        self.model_size = size
+        self.dropout = dropout
+        self.num_heads = num_heads
+
+        # 多个层的映射层拼接在一起
+        self.k_layer = nn.Linear(size, num_heads * self.head_size)
+        self.v_layer = nn.Linear(size, num_heads * self.head_size)
+        self.q_layer = nn.Linear(size, num_heads * self.head_size)
+
+        self.output_layer = nn.Linear(size, size)
+        self.softmax = nn.Softmax(dim=-1)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, k: Tensor, v: Tensor, q: Tensor, mask: Tensor = None):
+        """
+        Compute multi-headed attention
+
+        :param k:  keys [B, M, D] with M being the sentence length
+        :param v:  values [B, M, D]
+        :param q:  query [B, M, D], v=q
+        :param mask:  optional mask [B, 1, M]
+        :return:
+        """
+        batch_size = k.size(0)
+        num_heads = self.num_heads
+
+        # project the queries (q), keys(k). values(v)
+        k = self.k_layer(k)
+        v = self.v_layer(v)
+        q = self.q_layer(q)
+
+        # reshape q,k,v for our computation to [batch_size, num_heads, ..]
+        k = k.view(batch_size, -1, num_heads, self.head_size).transpose(1, 2)
+        v = v.view(batch_size, -1, num_heads, self.head_size).transpose(1, 2)
+        q = q.view(batch_size, -1, num_heads, self.head_size).transpose(1, 2)
+
+        # compute scores
+        q = q / math.sqrt(self.head_size)
+
+        # scores = q @ k.transpose(2, 3)
+        # [b, num_heads, q_len, head_size] * [b, num_heads, head_size, k_len]
+        #  = [b, num_heads, q_len, k_len]
+        scores = torch.matmul(q, k.transpose(2, 3))
+
+        # apply the mask (if we have one)
+        # we add a dimension for the heads to it below: [B, 1, 1, M]
+        if mask is not None:
+            scores = scores.masked_fill(~mask.unsqueeze(1), float('-inf'))
+
+        alpha = F.softmax(scores)
+
+        # apply dropout
+        alpha = self.dropout(alpha)
+
+        # [b, num_size, q_len, head_size]  q_len = v_len
+        attention = alpha @ v
+
+        attention = attention.transpose(1, 2).contiguous().view(batch_size, -1, num_heads * self.head_size)
+        output = self.output_layer(attention)
+
+        return output

@@ -1,7 +1,7 @@
 # coding=utf-8
 
 """
-vocabulary model
+vocabulary module
 word和id的映射
 """
 from collections import defaultdict, Counter
