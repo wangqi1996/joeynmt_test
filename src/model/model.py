@@ -9,7 +9,7 @@ from src.model.decoder import Decoder
 from src.model.encoder import Encoder
 from src.module.embedding import Embeddings
 from src.util.constants import BOS_TOKEN, PAD_TOKEN, EOS_TOKEN
-from src.util.vocabulary import Vocabulary
+from src.data.vocabulary import Vocabulary
 
 
 class Model(nn.Module):
