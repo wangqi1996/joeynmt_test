@@ -119,7 +119,8 @@ class Model(nn.Module):
             trg_mask=batch.trg_mask
         )
 
-        # compute log probs
+        # compute log probs [batch, seq_len, vocab_size]
+        # 先计算 log softmax！！！
         log_probs = F.log_softmax(out, dim=1)
 
         # compute batch loss
