@@ -3,13 +3,16 @@
 Module to represents whole models
 """
 
+import numpy as np
+import torch.nn.functional as F
 from torch import nn, Tensor
 
+from src.data.batch import Batch
+from src.data.vocabulary import Vocabulary
 from src.model.decoder import Decoder
 from src.model.encoder import Encoder
 from src.module.embedding import Embeddings
 from src.util.constants import BOS_TOKEN, PAD_TOKEN, EOS_TOKEN
-from src.data.vocabulary import Vocabulary
 
 
 class Model(nn.Module):
@@ -99,3 +102,83 @@ class Model(nn.Module):
                             unroll_steps=unroll_steps,
                             hidden=decoder_hidden,
                             trg_mask=trg_mask)
+
+    def get_loss_for_batch(self, batch: Batch, loss_function: nn.Module) -> Tensor:
+        """
+        Compute non-normalized loss and number of tokens for a batch
+
+        :param batch: batch to compute loss for
+        :param loss_function:  loss function, computes for input and target
+        a scalar loss for the complete batch
+
+        :return: batch_loss: sum of losses over non-pad elements in the batch
+        """
+        out, hidden, att_probs, _ = self.forward(
+            src=batch.src, trg_input=batch.trg_input,
+            src_mask=batch.src_mask, src_lengths=batch.src_length,
+            trg_mask=batch.trg_mask
+        )
+
+        # compute log probs
+        log_probs = F.log_softmax(out, dim=1)
+
+        # compute batch loss
+        batch_loss = loss_function(log_probs, batch.trg)
+
+        # return batch_loss = sum over all elements in batch that not pad
+        return batch_loss
+
+    def __repr__(self) -> str:
+        """
+        String representation: a description of encoder, decoder and embeddings
+        :return: string representation
+        """
+        return "%s(\n" \
+               "\tencoder=%s,\n" \
+               "\tdecoder=%s,\n" \
+               "\tsrc_embed=%s,\n" \
+               "\ttrg_embed=%s)" % (self.__class__.__name__, self.encoder,
+                                    self.decoder, self.src_embed, self.trg_embed)
+
+    def run_batch(self, batch: Batch, max_output_length: int, beam_size: int,
+                  beam_alpha: float) -> (np.array, np.array):
+        """
+        get outputs and attentions scores for a given batch
+
+        :param batch:  batch to generate hypotheses for
+        :param max_output_length:  maximum length of hypotheses
+        :param beam_size:  size of the beam for beam search, if 0 use greedy
+        :param beam_alpha:  hypotheses for batch
+        :return:  stacked_output: hypotheses for batch,
+            stacked_attention_scores: attention scores for batch
+        """
+        encoder_output, encoder_hidden = self.encode(
+            batch.src, batch.src_length, batch.src_mask
+        )
+
+        #  if maximum output length is not globally specified, adapt to src len
+        if max_output_length is None:
+            max_output_length = int(max(batch.src_length.cpu().numpy()) * 1.5)
+
+        # greedy decoding
+        if beam_size < 2:
+            stacked_output, stacked_attention_scores = greedy(
+                encoder_hidden=encoder_hidden,
+                encoder_output=encoder_output, eos_index=self.eos_index,
+                src_mask=batch.src_mask, embed=self.trg_embed,
+                bos_index=self.bos_index, decoder=self.decoder,
+                max_output_length=max_output_length
+            )
+        else:
+            stacked_output, stacked_attention_scores = \
+                beam_search(
+                    size=beam_size, encoder_output=encoder_output,
+                    encoder_hidden=encoder_hidden,
+                    src_mask=batch.src_mask, embed=self.trg_embed,
+                    max_output_length=max_output_length,
+                    alpha=beam_alpha, eos_index=self.eos_index,
+                    pad_index=self.pad_index,
+                    bos_index=self.bos_index,
+                    decoder=self.decoder)
+
+        return stacked_output, stacked_attention_scores
