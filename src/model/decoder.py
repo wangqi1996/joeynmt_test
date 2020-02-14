@@ -525,6 +525,7 @@ class TransformerDecoder(Decoder):
 
         x = self.layer_norm(x)
         output = self.output_layer(x)
+        # output: [batch_size, seq_len, vocab_size]
         return output, x, None, None
 
     def __repr__(self):

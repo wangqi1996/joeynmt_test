@@ -12,6 +12,7 @@ from src.data.vocabulary import Vocabulary
 from src.model.decoder import Decoder
 from src.model.encoder import Encoder
 from src.module.embedding import Embeddings
+from src.module.search import greedy, beam_search
 from src.util.constants import BOS_TOKEN, PAD_TOKEN, EOS_TOKEN
 
 
