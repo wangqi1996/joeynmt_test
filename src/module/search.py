@@ -352,6 +352,7 @@ def beam_search(decoder: Decoder, size: int, bos_index: int, eos_index: int, pad
             is_finished.fill_(True)
         # end condition is whether the top beam is finished
         # logits是累加的，最大scores对应的beam都结束了 == 所有的beam都结束了
+        # 可不可能是后面生成的句子肯定没有这个句子得分高？
         end_condition = is_finished[:, 0].eq(True)
 
         # save finished hypotheses
