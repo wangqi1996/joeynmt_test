@@ -41,7 +41,7 @@ def xavier_uniform_n_(w: Tensor, gain: float = 1., n: int = 4) -> None:
     Xavier initializer for parameters that combine multiple matrices in one
     parameter for efficiency. This is e.g. used for GRU and LSTM parameters,
     where e.r. all gate are computed at the same time by 1 big matrix.
-
+bu
     :param w: parameters
     :param gain: default 1
     :param n: default 4
