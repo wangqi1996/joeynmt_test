@@ -1,10 +1,6 @@
 # coding=utf-8
 import argparse
 
-from joeynmt.prediction import test
-from joeynmt.prediction import translate
-from joeynmt.training import train
-
 
 def main():
     ap = argparse.ArgumentParser("Joey NMT")

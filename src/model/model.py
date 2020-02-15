@@ -9,11 +9,13 @@ from torch import nn, Tensor
 
 from src.data.batch import Batch
 from src.data.vocabulary import Vocabulary
-from src.model.decoder import Decoder
-from src.model.encoder import Encoder
+from src.model.decoder import Decoder, TransformerDecoder, RecurrentDecoder
+from src.model.encoder import Encoder, TransformerEncoder, RecurrentEncoder
 from src.module.embedding import Embeddings
 from src.module.search import greedy, beam_search
 from src.util.constants import BOS_TOKEN, PAD_TOKEN, EOS_TOKEN
+from src.util.initialization import initialize_model
+from src.util.util import ConfigurationError
 
 
 class Model(nn.Module):
@@ -184,3 +186,91 @@ class Model(nn.Module):
                     decoder=self.decoder)
 
         return stacked_output, stacked_attention_scores
+
+
+def build_model(cfg: dict = None,
+                src_vocab: Vocabulary = None,
+                trg_vocab: Vocabulary = None) -> Model:
+    """
+    Build and initialize the model according to the configuration.
+
+    :param cfg: dictionary configuration containing model specifications
+    :param src_vocab: source vocabulary
+    :param trg_vocab: target vocabulary
+    :return: built and initialized model
+    """
+    src_padding_idx = src_vocab.stoi[PAD_TOKEN]
+    trg_padding_idx = trg_vocab.stoi[PAD_TOKEN]
+
+    src_embed = Embeddings(
+        **cfg["encoder"]["embeddings"], vocab_size=len(src_vocab),
+        padding_idx=src_padding_idx
+    )
+
+    # this ties source and target embeddings
+    # for softmax layer tying, see further below
+    if cfg.get("tied_embeddings", False):
+        # 只有src和trg使用相同的vocab才可以tied_embedding
+        if src_vocab.itos == trg_vocab.itos:
+            # share embeddings for src and trg, src和trg公用一个embedding
+            trg_embed = src_embed
+        else:
+            raise ConfigurationError(
+                "Embedding cannot be tied since vocabularies differ.")
+    else:
+        trg_embed = Embeddings(
+            **cfg["decoder"]["embeddings"], vocab_size=len(trg_vocab),
+            padding_idx=trg_padding_idx
+        )
+
+    # build encoder
+    enc_dropout = cfg["encoder"].get("dropout", 0.)
+    enc_emb_dropout = cfg["encoder"].get("embeddings").get("dropout", enc_dropout)
+
+    if cfg["encoder"].get("type", "recurrent") == "transformer":
+        assert cfg["encoder"]["embeddings"]["embedding_dim"] == \
+               cfg["encoder"]["hidden_size"], \
+            "for transformer, emb_size must be hidden_size"
+
+        encoder = TransformerEncoder(**cfg["encoder"],
+                                     emb_size=src_embed.embedding_dim,
+                                     emb_dropout=enc_emb_dropout)
+
+    else:
+        encoder = RecurrentEncoder(**cfg["encoder"],
+                                   emb_size=src_embed.embedding_dim,
+                                   emb_dropout=enc_emb_dropout)
+
+    # build decoder
+    dec_dropout = cfg["decoder"].get("dropout", 0.)
+    dec_emb_dropout = cfg["decoder"]["embeddings"].get("dropout", dec_dropout)
+
+    if cfg["decoder"].get("type", "recurrent") == "transformer":
+        decoder = TransformerDecoder(**cfg["decoder"],
+                                     emb_size=src_embed.embedding_dim,
+                                     emb_dropout=dec_emb_dropout)
+    else:
+        decoder = RecurrentDecoder(**cfg["decoder"],
+                                   emb_size=src_embed.embedding_dim,
+                                   emb_dropout=dec_emb_dropout)
+
+    # build model
+    model = Model(encoder=encoder, decoder=decoder,
+                  src_embed=src_embed, trg_embed=trg_embed,
+                  src_vocab=src_vocab, trg_vocab=trg_vocab)
+
+    # tie softmax layer with trg embedding
+    if cfg.get("tied_softmax", False):
+        if trg_embed.lut.weight.shape == model.decoder.output_layer.weight.shape:
+            # (also) share trg embeddings and softmax layer:
+            model.decoder.output_layer.weight = trg_embed.lut.weight
+        else:
+            raise ConfigurationError(
+                "For tied_softmax, the decoder embedding_dim and decoder "
+                "hidden_size must be the same."
+                "The decoder must be a Transformer.")
+
+    # init
+    initialize_model(model, cfg, src_padding_idx, trg_padding_idx)
+
+    return model

@@ -37,6 +37,7 @@ class Embeddings(nn.Module):
 
         """
         if self.scale:
+            # transformer
             return self.embedding(x) * math.sqrt(self.embedding_dim)
 
         return self.embedding(x)

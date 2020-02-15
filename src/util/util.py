@@ -1,6 +1,7 @@
 # coding=utf-8
 import numpy as np
 import torch
+import yaml
 from torch import Tensor
 
 
@@ -9,16 +10,6 @@ class ConfigurationError(Exception):
     pass
 
 
-def subsequent_mask(size: int) -> Tensor:
-    """
-    Mask out subsequent positions (to prevent attending to future positions)
-    Transformer helper function.
-
-    :param size: size of mask (2nd and 3rd dim)
-    :return: Tensor with 0s and 1s of shape (1, size, size)
-    """
-    mask = np.triu(np.ones((1, size, size)), k=1).astype('uint8')
-    return torch.from_numpy(mask) == 0
 
 
 def tile(x: Tensor, count: int, dim=0) -> Tensor:
@@ -57,3 +48,15 @@ def tile(x: Tensor, count: int, dim=0) -> Tensor:
         x = x.permute(perm).contiguous()
 
     return x
+
+
+def load_config(path="config/default.ymal") -> dict:
+    """
+    Load and parses a YAML configuration file
+
+    :param path: path to YAML configuration file
+    :return: configuration dictionary
+    """
+    with open(path, 'r') as ymlfile:
+        cfg = yaml.safe_load(ymlfile)
+    return cfg

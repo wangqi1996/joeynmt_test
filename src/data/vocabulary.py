@@ -29,6 +29,7 @@ class Vocabulary:
         self.specials = [UNK_TOKEN, EOS_TOKEN, BOS_TOKEN, PAD_TOKEN]
 
         # 构造一个词典，默认值为0
+        # word: id
         self.stoi = defaultdict(DEFAULT_VOCAB_VALUE)
         self.itos = []  # 用数组下标对齐
 
