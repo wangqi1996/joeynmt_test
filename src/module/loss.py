@@ -13,7 +13,7 @@ class XentLoss(nn.Module):
     Cross-Entropy Loss with optional label smoothing
     """
 
-    def __int__(self, pad_index: int, smoothing: float = 0.0):
+    def __init__(self, pad_index: int, smoothing: float = 0.0):
         super().__init__()
 
         self.smoothing = smoothing
